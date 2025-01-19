@@ -5,7 +5,7 @@ from torch import nn
 import torch.nn.functional as F
 
 def get_device():
-    return torch.device('cuda') if torch.cuda.is_available() else torch.device('cpy')
+    return torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 
 def scaled_dot_product(q, k, v, mask=None):
@@ -52,14 +52,15 @@ class SentenceEmbedding(nn.Module):
     def batch_tokenize(self, batch, start_token, end_token):
 
         def tokenize(object, start_token, end_token):
-            obj_indicies = [self.obj_to_index[token] for token in list(object)]
+            items = object.split(", ")
+            obj_indicies = [self.obj_to_index[token] for token in list(items)]
             if start_token:
                 obj_indicies.insert(0, self.obj_to_index[self.START_TOKEN])
             if end_token:
                 obj_indicies.append(self.obj_to_index[self.END_TOKEN])
             for _ in range(len(obj_indicies), self.max_sequence_length):
                 obj_indicies.append(self.obj_to_index[self.PADDING_TOKEN])
-            return obj_indicies
+            return torch.tensor(obj_indicies)
         
         tokenized = []
         for obj_num in range(len(batch)):
@@ -70,7 +71,7 @@ class SentenceEmbedding(nn.Module):
     def forward(self, batch, start_token, end_token):
         x = self.batch_tokenize(batch, start_token, end_token)
         x = self.embedding(x)
-        pos = self.position_encoder()
+        pos = self.position_encoder().to(get_device())
         x = self.dropout(x + pos)
         return x
     
@@ -89,7 +90,7 @@ class MultiHeadAttention(nn.Module):
         qkv = self.qkv_layer(x) 
         qkv = qkv.reshape(batch_size, sequence_length, self.num_heads, 3 * self.head_dim)
         qkv = qkv.permute(0, 2, 1, 3)
-        q, k, v = qkv.chunk(3, dim=1)
+        q, k, v = qkv.chunk(3, dim=-1)
         values, attention = scaled_dot_product(q, k, v, mask)
         values = values.permute(0, 2, 1, 3).reshape(batch_size, sequence_length, self.num_heads * self.head_dim)
         out = self.linear_layer(values)
