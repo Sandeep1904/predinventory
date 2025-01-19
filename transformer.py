@@ -50,31 +50,64 @@ class SentenceEmbedding(nn.Module):
         self.PADDING_TOKEN = PADDING_TOKEN
 
     def batch_tokenize(self, batch, start_token, end_token):
-
         def tokenize(object, start_token, end_token):
             items = object.split(", ")
-            obj_indicies = [self.obj_to_index[token] for token in list(items)]
+            obj_indices = []
+
+            for token in items:
+                # Ensure the token exists in the vocabulary, else use <UNK>
+                if token in self.obj_to_index:
+                    obj_indices.append(self.obj_to_index[token])
+                else:
+                    # Handle unknown tokens gracefully
+                    obj_indices.append(self.obj_to_index.get(self.PADDING_TOKEN, 0))  # Default to 0 if <UNK> not defined
+                    print(f"Warning: Token '{token}' not found in vocabulary. Replacing with <UNK>.")
+
+            # Add start and end tokens if required
             if start_token:
-                obj_indicies.insert(0, self.obj_to_index[self.START_TOKEN])
+                obj_indices.insert(0, self.obj_to_index[self.START_TOKEN])
             if end_token:
-                obj_indicies.append(self.obj_to_index[self.END_TOKEN])
-            for _ in range(len(obj_indicies), self.max_sequence_length):
-                obj_indicies.append(self.obj_to_index[self.PADDING_TOKEN])
-            return torch.tensor(obj_indicies)
-        
+                obj_indices.append(self.obj_to_index[self.END_TOKEN])
+
+            # Pad to max_sequence_length
+            for _ in range(len(obj_indices), self.max_sequence_length):
+                obj_indices.append(self.obj_to_index[self.PADDING_TOKEN])
+
+            # Ensure sequence is within max_sequence_length
+            if len(obj_indices) > self.max_sequence_length:
+                obj_indices = obj_indices[:self.max_sequence_length]
+
+            return torch.tensor(obj_indices, dtype=torch.long)
+
         tokenized = []
         for obj_num in range(len(batch)):
             tokenized.append(tokenize(batch[obj_num], start_token, end_token))
+
         tokenized = torch.stack(tokenized)
         return tokenized.to(get_device())
-    
+
     def forward(self, batch, start_token, end_token):
+        # Tokenize the batch
         x = self.batch_tokenize(batch, start_token, end_token)
+
+        # Debugging: Check if indices are in range
+        num_embeddings = self.embedding.num_embeddings
+        if torch.any((x < 0) | (x >= num_embeddings)):
+                    # Debugging: Locate problematic indices
+            invalid_indices = x[(x < 0) | (x >= num_embeddings)]
+            print(f"Invalid indices found: {invalid_indices.tolist()}")
+            print(self.obj_size)
+            print(f"Batch: {batch}")
+            raise ValueError("Invalid indices found in the tokenized input. Check your tokenization logic or vocabulary.")
+
+        # Pass through the embedding layer
         x = self.embedding(x)
+
+        # Add positional encoding
         pos = self.position_encoder().to(get_device())
         x = self.dropout(x + pos)
-        return x
-    
+
+        return x    
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model, num_heads):
@@ -202,7 +235,7 @@ class MultiHeadCrossAttention(nn.Module):
         q = q.reshape(batch_size, sequence_length, self.num_heads, self.head_dim)
         kv = kv.permute(0, 2, 1, 3)
         q = q.permute(0, 2, 1, 3)
-        k, v = kv.chunck(2, dim = -1)
+        k, v = kv.chunk(2, dim = -1)
         values, attention = scaled_dot_product(q, k, v, mask)
         values = values.permute(0, 2, 1, 3).reshape(batch_size, sequence_length, d_model)
         out = self.linear_layer(values)
