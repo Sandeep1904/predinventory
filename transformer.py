@@ -16,6 +16,7 @@ def scaled_dot_product(q, k, v, mask=None):
         scaled = scaled.permute(1, 0, 2, 3)
         attention = F.softmax(scaled, dim=-1)
         values = torch.matmul(attention, v)
+        print("scaled dot product ran")
         return values, attention
     
 
@@ -33,6 +34,7 @@ class PositionalEncoding(nn.Module):
         odd_PE = torch.cos(position / denominator)
         stacked = torch.stack([even_PE, odd_PE], dim=2)
         PE = torch.flatten(stacked, start_dim=1, end_dim=2)
+        print("positional encoding forward")
         return PE
     
 
@@ -56,12 +58,15 @@ class SentenceEmbedding(nn.Module):
 
             for token in items:
                 # Ensure the token exists in the vocabulary, else use <UNK>
+                if token == "":  # Check for empty string
+                    print("Skipping empty token")
+                    continue  # Skip to the next token
                 if token in self.obj_to_index:
                     obj_indices.append(self.obj_to_index[token])
                 else:
                     # Handle unknown tokens gracefully
-                    obj_indices.append(self.obj_to_index.get(self.PADDING_TOKEN, 0))  # Default to 0 if <UNK> not defined
-                    print(f"Warning: Token '{token}' not found in vocabulary. Replacing with <UNK>.")
+                    obj_indices.append(self.obj_to_index.get(0))  # Default to 0 if <UNK> not defined
+                    print(f"Warning: Token '{token}' not found in vocabulary. Replacing with 0.")
 
             # Add start and end tokens if required
             if start_token:
@@ -77,13 +82,17 @@ class SentenceEmbedding(nn.Module):
             if len(obj_indices) > self.max_sequence_length:
                 obj_indices = obj_indices[:self.max_sequence_length]
 
+        
+            print("tokenise within batch")
             return torch.tensor(obj_indices, dtype=torch.long)
+              
 
         tokenized = []
         for obj_num in range(len(batch)):
             tokenized.append(tokenize(batch[obj_num], start_token, end_token))
 
         tokenized = torch.stack(tokenized)
+        print("batch tokenise ran")
         return tokenized.to(get_device())
 
     def forward(self, batch, start_token, end_token):
@@ -106,7 +115,7 @@ class SentenceEmbedding(nn.Module):
         # Add positional encoding
         pos = self.position_encoder().to(get_device())
         x = self.dropout(x + pos)
-
+        print("sentence embedding forward")
         return x    
 
 class MultiHeadAttention(nn.Module):
@@ -127,6 +136,7 @@ class MultiHeadAttention(nn.Module):
         values, attention = scaled_dot_product(q, k, v, mask)
         values = values.permute(0, 2, 1, 3).reshape(batch_size, sequence_length, self.num_heads * self.head_dim)
         out = self.linear_layer(values)
+        print("multiattention head forward")
         return out
     
 
@@ -145,6 +155,7 @@ class LayerNormalization(nn.Module):
         std = (var + self.eps).sqrt()
         y = (inputs - mean) / std
         out = self.gamma * y + self.beta
+        print("layer normalisation forward")
         return out
     
 
@@ -161,6 +172,7 @@ class PositionwiseFeedForward(nn.Module):
         x = self.relu(x)
         x = self.dropout(x)
         x = self.linear2(x)
+        print("Positionwise feed forward ")
         return x
     
 
@@ -183,6 +195,7 @@ class EncoderLayer(nn.Module):
         x = self.ffn(x)
         x = self.dropout2(x)
         x = self.norm2(x + residual_x)
+        print("encoder layer forward")
         return x
     
 
@@ -191,6 +204,7 @@ class SequentialEncoder(nn.Sequential):
         x, self_attention_mask = inputs
         for module in self._modules.values():
             x = module(x, self_attention_mask)
+        print("sequential encoder forward")
         return x
     
 
@@ -214,6 +228,7 @@ class Encoder(nn.Module):
     def forward(self, x, self_attention_mask, start_token, end_token):
         x = self.sentence_embedding(x, start_token, end_token)
         x = self.layers(x, self_attention_mask)
+        print("encoder forward")
         return x
     
 
@@ -239,6 +254,7 @@ class MultiHeadCrossAttention(nn.Module):
         values, attention = scaled_dot_product(q, k, v, mask)
         values = values.permute(0, 2, 1, 3).reshape(batch_size, sequence_length, d_model)
         out = self.linear_layer(values)
+        print("multihead cross attention forward")
         return out
     
 
@@ -273,7 +289,7 @@ class DecoderLayer(nn.Module):
         y = self.ffn(y)
         y = self.dropout3(y)
         y = self.layer_norm3(y + _y)
-
+        print("decoder layer forward")
         return y
     
 
@@ -282,6 +298,7 @@ class SequentialDecoder(nn.Sequential):
         x, y , self_attention_mask, cross_attention_mask = inputs
         for module in self._modules.values():
             y = module(x, y, self_attention_mask, cross_attention_mask)
+        print("sequential decoder forward")
         return y
     
 
@@ -304,6 +321,7 @@ class Decoder(nn.Module):
     def forward(self, x, y, self_attention_mask, cross_attention_mask, start_token, end_token):
         y = self.sentence_embedding(y, start_token, end_token)
         y = self.layers(x, y, self_attention_mask, cross_attention_mask)
+        print("decoder forward")
         return y
     
 
@@ -341,6 +359,7 @@ class Transformer(nn.Module):
         x = self.encoder(x, encoder_self_attention_mask, start_token=enc_start_token, end_token=enc_end_token)
         out = self.decoder(x, y, decoder_self_attention_mask, decoder_cross_attention_mask, start_token=dec_start_token, end_token=dec_end_token)
         out = self.linear(out)
+        print("transformer forward")
         return out
     
 
