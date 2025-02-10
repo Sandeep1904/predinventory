@@ -53,7 +53,7 @@ class SentenceEmbedding(nn.Module):
 
     def batch_tokenize(self, batch, start_token, end_token):
         def tokenize(object, start_token, end_token):
-            items = object.split(", ")
+            items = list(object)
             obj_indices = []
 
             for token in items:
