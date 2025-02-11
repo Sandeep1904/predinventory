@@ -1,3 +1,11 @@
+"""
+1. data processing doesn't matter because model is already trained.
+2. Take user input for date.
+3. Directly use xgboost for volume prediction.
+4. Change eval model to give probability distribution.
+"""
+
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -7,6 +15,8 @@ import torch
 
 
 st.title("Let's predict what food is ordered and how much")
+
+st.write("### Naive implementation of a transformer doesn't perform really well, hence currently working on some training enhancements. You can checkout the code on github till then.")
 
 @st.cache_data
 def load_data(file):
@@ -66,6 +76,7 @@ num_layers = 12
 max_sequence_length = 30
 obj_size = len(obj_to_index)
 
+st.cache_resource
 transformer = Transformer(d_model,
                           ffn_hidden,
                           num_heads,
@@ -79,7 +90,7 @@ transformer = Transformer(d_model,
                           END_TOKEN,
                           PADDING_TOKEN)
 
-
+st.cache_resource
 transformer.load_state_dict(torch.load('trained_transformer_model.pth'))
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
