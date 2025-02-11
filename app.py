@@ -76,8 +76,9 @@ num_layers = 12
 max_sequence_length = 30
 obj_size = len(obj_to_index)
 
-st.cache_resource
-transformer = Transformer(d_model,
+@st.cache_resource
+def load_transformer():
+    transformer = Transformer(d_model,
                           ffn_hidden,
                           num_heads,
                           drop_prob,
@@ -89,9 +90,12 @@ transformer = Transformer(d_model,
                           START_TOKEN,
                           END_TOKEN,
                           PADDING_TOKEN)
+    transformer.load_state_dict(torch.load('trained_transformer_model.pth'))
 
-st.cache_resource
-transformer.load_state_dict(torch.load('trained_transformer_model.pth'))
+    return transformer
+
+transformer = load_transformer()
+
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 
