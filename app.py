@@ -74,7 +74,7 @@ d_model = 64
 ffn_hidden = 256
 num_heads = 8
 drop_prob = 0.1
-num_layers = 12
+num_layers = 4
 max_sequence_length = 30
 obj_size = len(obj_to_index)
 
@@ -368,5 +368,7 @@ sum_volumes_softmax_rounded = sorted_item_probabilities['Volumes_Softmax_Rounded
 
 st.write(f"Sum of Volumes (softmax): {sum_volumes_softmax}")
 st.write(f"Sum of Volumes (softmax rounded): {sum_volumes_softmax_rounded}")
-st.write("#### Well this discrepancy is a problem! Will fix this soon.")
+st.write("#### Getting predictions for a day, don't result in whole numbers as the fraction of volumes are too small, but this would make sense for weekly volumes.")
 st.write(sorted_item_probabilities)
+
+st.write("##### 🧪 Currently working on deriving a new loss function specific to this use case.")
